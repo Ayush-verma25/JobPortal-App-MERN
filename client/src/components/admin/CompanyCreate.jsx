@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Navbar from '../shared/Navbar'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
@@ -16,66 +16,70 @@ const CompanyCreate = () => {
     const [loading, setLoading] = useState(false);
     const dispatch = useDispatch();
     
-    // Get user/auth data from Redux store
+    // Get user from Redux store to check authentication
     const { user } = useSelector(store => store.auth);
+
+    // Check authentication on component mount
+    useEffect(() => {
+        if (!user) {
+            toast.error('Please login to create a company');
+            navigate('/login');
+            return;
+        }
+    }, [user, navigate]);
 
     const registerNewCompany = async () => {
         // Validation
-        if (!companyName.trim()) {
-            toast.error('Company name is required');
+        if (!companyName || companyName.trim() === '') {
+            toast.error('Please enter a company name');
             return;
         }
 
-        // Check if user is authenticated
         if (!user) {
-            toast.error('Please login to continue');
+            toast.error('Authentication required. Please login again.');
             navigate('/login');
             return;
         }
 
         setLoading(true);
+        
         try {
-            // Get token from localStorage or cookies
-            const token = localStorage.getItem('token') || 
-                         document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
-
-            if (!token) {
-                toast.error('Authentication required. Please login again.');
-                navigate('/login');
-                return;
-            }
-
-            const config = {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // Add authorization header
-                },
-                withCredentials: true
-            };
-
+            // Get token from localStorage or Redux store
+            const token = localStorage.getItem('token') || user?.token;
+            
             const res = await axios.post(
                 `${COMPANY_API_END_POINT}/register`, 
                 { companyName: companyName.trim() }, 
-                config
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`, // Add authorization header
+                    },
+                    withCredentials: true
+                }
             );
 
             if (res?.data?.success) {
                 dispatch(setSingleCompany(res.data.company));
-                toast.success(res.data.message || 'Company created successfully');
+                toast.success(res.data.message);
                 const companyId = res?.data?.company?._id;
                 navigate(`/admin/companies/${companyId}`);
             }
         } catch (error) {
             console.error('Company creation error:', error);
             
+            // Handle different error scenarios
             if (error.response?.status === 401) {
-                toast.error('Session expired. Please login again.');
-                localStorage.removeItem('token'); // Clear invalid token
+                toast.error('Authentication required. Please login again.');
+                // Clear local storage and redirect to login
+                localStorage.removeItem('token');
                 navigate('/login');
             } else if (error.response?.status === 403) {
-                toast.error('Access denied. Insufficient permissions.');
+                toast.error('You do not have permission to create a company.');
             } else if (error.response?.data?.message) {
                 toast.error(error.response.data.message);
+            } else if (error.message === 'Network Error') {
+                toast.error('Network error. Please check your connection and try again.');
             } else {
                 toast.error('Failed to create company. Please try again.');
             }
@@ -84,24 +88,45 @@ const CompanyCreate = () => {
         }
     }
 
+    // Show loading or redirect if not authenticated
+    if (!user) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                    <p>Checking authentication...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div>
             <Navbar />
-            <div className='max-w-4xl mx-auto'>
+            <div className='max-w-4xl mx-auto px-4'>
                 <div className='my-10'>
                     <h1 className='font-bold text-2xl'>Your Company Name</h1>
                     <p className='text-gray-500'>What would you like to give your company name? You can change this later.</p>
                 </div>
 
-                <Label>Company Name</Label>
-                <Input
-                    type="text"
-                    className="my-2"
-                    placeholder="JobHunt, Microsoft etc."
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    disabled={loading}
-                />
+                <div className='space-y-4'>
+                    <Label htmlFor="companyName">Company Name</Label>
+                    <Input
+                        id="companyName"
+                        type="text"
+                        className="my-2"
+                        placeholder="JobHunt, Microsoft etc."
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        disabled={loading}
+                        onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !loading) {
+                                registerNewCompany();
+                            }
+                        }}
+                    />
+                </div>
+                
                 <div className='flex items-center gap-2 my-10'>
                     <Button 
                         variant="outline" 
