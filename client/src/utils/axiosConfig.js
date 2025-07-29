@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 
 // Create axios instance
 const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+    baseURL: process.env.VITE_BACKEND_URL || 'http://localhost:8000/api/v1',
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
