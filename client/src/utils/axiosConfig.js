@@ -1,27 +1,22 @@
-// utils/axiosConfig.js or api/axiosConfig.js
+// utils/axiosConfig.js or utils/api.js
 import axios from 'axios';
 import { toast } from 'sonner';
 
 // Create axios instance
 const api = axios.create({
-    baseURL: process.env.VITE_BACKEND_URL || 'http://localhost:8000/api/v1',
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
-    },
+    }
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
     (config) => {
-        // Get token from localStorage or cookies
-        const token = localStorage.getItem('token') || 
-                     document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
-        
+        const token = localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        
         return config;
     },
     (error) => {
@@ -29,7 +24,7 @@ api.interceptors.request.use(
     }
 );
 
-// Response interceptor to handle common errors
+// Response interceptor to handle auth errors
 api.interceptors.response.use(
     (response) => {
         return response;
@@ -39,9 +34,15 @@ api.interceptors.response.use(
             // Token expired or invalid
             localStorage.removeItem('token');
             toast.error('Session expired. Please login again.');
-            window.location.href = '/login';
+            
+            // Redirect to login page
+            if (typeof window !== 'undefined') {
+                window.location.href = '/login';
+            }
         } else if (error.response?.status === 403) {
-            toast.error('Access denied. Insufficient permissions.');
+            toast.error('Access denied. You do not have permission to perform this action.');
+        } else if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
+            toast.error('Network error. Please check your connection.');
         }
         
         return Promise.reject(error);
@@ -49,3 +50,33 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Alternative: Configure default axios
+// You can also configure the default axios instance instead of creating a new one
+/*
+axios.defaults.withCredentials = true;
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+
+axios.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+            toast.error('Session expired. Please login again.');
+            window.location.href = '/login';
+        }
+        return Promise.reject(error);
+    }
+);
+*/
