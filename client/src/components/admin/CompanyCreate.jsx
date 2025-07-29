@@ -7,105 +7,114 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { COMPANY_API_END_POINT } from '@/utils/constant'
 import { toast } from 'sonner'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { setSingleCompany } from '@/redux/companySlice'
 
 const CompanyCreate = () => {
     const navigate = useNavigate();
-    const [companyName, setCompanyName] = useState(''); // Initialize with empty string
-    const [isLoading, setIsLoading] = useState(false); // Add loading state
+    const [companyName, setCompanyName] = useState('');
+    const [loading, setLoading] = useState(false);
     const dispatch = useDispatch();
+    
+    // Get user/auth data from Redux store
+    const { user } = useSelector(store => store.auth);
 
     const registerNewCompany = async () => {
-        // Input validation
-        if (!companyName || companyName.trim() === '') {
-            toast.error('Please enter a company name');
+        // Validation
+        if (!companyName.trim()) {
+            toast.error('Company name is required');
             return;
         }
 
-        setIsLoading(true);
+        // Check if user is authenticated
+        if (!user) {
+            toast.error('Please login to continue');
+            navigate('/login');
+            return;
+        }
+
+        setLoading(true);
         try {
-            const res = await axios.post(`${COMPANY_API_END_POINT}/register`, 
+            // Get token from localStorage or cookies
+            const token = localStorage.getItem('token') || 
+                         document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+
+            if (!token) {
+                toast.error('Authentication required. Please login again.');
+                navigate('/login');
+                return;
+            }
+
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // Add authorization header
+                },
+                withCredentials: true
+            };
+
+            const res = await axios.post(
+                `${COMPANY_API_END_POINT}/register`, 
                 { companyName: companyName.trim() }, 
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    withCredentials: true,
-                    timeout: 10000 // Add timeout for better error handling
-                }
+                config
             );
 
             if (res?.data?.success) {
                 dispatch(setSingleCompany(res.data.company));
-                toast.success(res.data.message);
+                toast.success(res.data.message || 'Company created successfully');
                 const companyId = res?.data?.company?._id;
-                if (companyId) {
-                    navigate(`/admin/companies/${companyId}`);
-                } else {
-                    toast.error('Company created but ID not found');
-                    navigate('/admin/companies');
-                }
-            } else {
-                toast.error(res?.data?.message || 'Failed to create company');
+                navigate(`/admin/companies/${companyId}`);
             }
         } catch (error) {
             console.error('Company creation error:', error);
             
-            // Better error handling
-            if (error.response) {
-                const errorMessage = error.response?.data?.message || 'Server error occurred';
-                toast.error(errorMessage);
-            } else if (error.request) {
-                toast.error('Network error. Please check your connection.');
+            if (error.response?.status === 401) {
+                toast.error('Session expired. Please login again.');
+                localStorage.removeItem('token'); // Clear invalid token
+                navigate('/login');
+            } else if (error.response?.status === 403) {
+                toast.error('Access denied. Insufficient permissions.');
+            } else if (error.response?.data?.message) {
+                toast.error(error.response.data.message);
             } else {
-                toast.error('An unexpected error occurred');
+                toast.error('Failed to create company. Please try again.');
             }
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
-    }
-
-    const handleCancel = () => {
-        navigate("/admin/companies");
     }
 
     return (
         <div>
             <Navbar />
-            <div className='max-w-4xl mx-auto px-4'> {/* Add horizontal padding for mobile */}
+            <div className='max-w-4xl mx-auto'>
                 <div className='my-10'>
                     <h1 className='font-bold text-2xl'>Your Company Name</h1>
                     <p className='text-gray-500'>What would you like to give your company name? You can change this later.</p>
                 </div>
 
-                <div className='space-y-2'>
-                    <Label htmlFor="companyName">Company Name</Label>
-                    <Input
-                        id="companyName"
-                        type="text"
-                        className="my-2"
-                        placeholder="JobHunt, Microsoft etc."
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        disabled={isLoading}
-                        maxLength={100} // Add reasonable limit
-                    />
-                </div>
-                
+                <Label>Company Name</Label>
+                <Input
+                    type="text"
+                    className="my-2"
+                    placeholder="JobHunt, Microsoft etc."
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    disabled={loading}
+                />
                 <div className='flex items-center gap-2 my-10'>
                     <Button 
                         variant="outline" 
-                        onClick={handleCancel}
-                        disabled={isLoading}
+                        onClick={() => navigate("/admin/companies")}
+                        disabled={loading}
                     >
                         Cancel
                     </Button>
                     <Button 
                         onClick={registerNewCompany}
-                        disabled={isLoading || !companyName?.trim()}
+                        disabled={loading || !companyName.trim()}
                     >
-                        {isLoading ? 'Creating...' : 'Continue'}
+                        {loading ? 'Creating...' : 'Continue'}
                     </Button>
                 </div>
             </div>
