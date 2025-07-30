@@ -122,10 +122,11 @@ export const login = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: `Welcome back ${user.fullname}`,
-      success: true,
-      user: sanitizeUser(user),
-    });
+    message: `Welcome back ${user.fullname}`,
+    success: true,
+    user: sanitizeUser(user),
+    token: token  // Add this line
+});
 
   } catch (err) {
     console.error("Login Error:", err);
