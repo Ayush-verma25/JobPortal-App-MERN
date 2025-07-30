@@ -1,19 +1,18 @@
-// utils/axiosConfig.js or utils/api.js
+// utils/axiosConfig.js or api/axiosConfig.js
 import axios from 'axios';
 import { toast } from 'sonner';
 
 // Create axios instance
 const api = axios.create({
+    baseURL: process.env.REACT_BACKEND_URL || 'http://localhost:8000/api/v1',
     withCredentials: true,
-    headers: {
-        'Content-Type': 'application/json',
-    }
+    timeout: 10000,
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('authToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -24,59 +23,20 @@ api.interceptors.request.use(
     }
 );
 
-// Response interceptor to handle auth errors
+// Response interceptor to handle authentication errors
 api.interceptors.response.use(
     (response) => {
         return response;
     },
     (error) => {
         if (error.response?.status === 401) {
-            // Token expired or invalid
-            localStorage.removeItem('token');
-            toast.error('Session expired. Please login again.');
-            
-            // Redirect to login page
-            if (typeof window !== 'undefined') {
-                window.location.href = '/login';
-            }
-        } else if (error.response?.status === 403) {
-            toast.error('Access denied. You do not have permission to perform this action.');
-        } else if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
-            toast.error('Network error. Please check your connection.');
-        }
-        
-        return Promise.reject(error);
-    }
-);
-
-export default api;
-
-// Alternative: Configure default axios
-// You can also configure the default axios instance instead of creating a new one
-/*
-axios.defaults.withCredentials = true;
-axios.defaults.headers.common['Content-Type'] = 'application/json';
-
-axios.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
-
-axios.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            toast.error('Session expired. Please login again.');
+            // Clear token and redirect to login
+            localStorage.removeItem('authToken');
+            toast.error('Session expired. Please log in again.');
             window.location.href = '/login';
         }
         return Promise.reject(error);
     }
 );
-*/
+
+export default api;
