@@ -55,17 +55,21 @@ const CompanySetup = () => {
         try {
             setLoading(true);
             
-            // Get token from localStorage or wherever it's stored
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            // FIXED: Use consistent token key and better token handling
+            const token = localStorage.getItem('authToken');
+            
+            if (!token) {
+                toast.error("Authentication required. Please log in again.");
+                navigate('/login');
+                return;
+            }
             
             const config = {
                 headers: {
                     'Content-Type': 'multipart/form-data',
-                    // Add Authorization header if token exists
-                    ...(token && { 'Authorization': `Bearer ${token}` })
+                    'Authorization': `Bearer ${token}` // Always include if token exists
                 },
                 withCredentials: true,
-                // Add timeout to prevent hanging requests
                 timeout: 30000
             };
 
@@ -83,15 +87,13 @@ const CompanySetup = () => {
                 const status = error.response.status;
                 const message = error.response.data?.message || 'An error occurred';
                 
-                if (status === 401) {
+                if (status === 401 || status === 403) {
                     toast.error("Authentication required. Please log in again.");
-                    // Clear invalid tokens
+                    // Clear all possible token keys
+                    localStorage.removeItem('authToken');
                     localStorage.removeItem('token');
-                    sessionStorage.removeItem('token');
-                    // Redirect to login page
+                    sessionStorage.clear();
                     navigate('/login');
-                } else if (status === 403) {
-                    toast.error("You don't have permission to perform this action.");
                 } else if (status === 404) {
                     toast.error("Company not found.");
                 } else if (status >= 500) {
@@ -100,10 +102,8 @@ const CompanySetup = () => {
                     toast.error(message);
                 }
             } else if (error.request) {
-                // Network error
                 toast.error("Network error. Please check your connection and try again.");
             } else {
-                // Other errors
                 toast.error("An unexpected error occurred. Please try again.");
             }
         } finally {
