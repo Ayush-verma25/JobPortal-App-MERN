@@ -114,6 +114,7 @@ export const login = async (req, res) => {
       audience: "your-app-users"
     });
 
+    // Set HTTP-only cookie
     res.cookie("token", token, {
       maxAge: 86400000,
       httpOnly: true,
@@ -122,11 +123,11 @@ export const login = async (req, res) => {
     });
 
     return res.status(200).json({
-    message: `Welcome back ${user.fullname}`,
-    success: true,
-    user: sanitizeUser(user),
-    token: token  // Add this line
-});
+      message: `Welcome back ${user.fullname}`,
+      success: true,
+      user: sanitizeUser(user),
+      token: token  // ADD THIS LINE - Return token in response body
+    });
 
   } catch (err) {
     console.error("Login Error:", err);
