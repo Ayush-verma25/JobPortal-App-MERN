@@ -26,7 +26,8 @@ export const registerCompany = async (req, res) => {
         return res.status(201).json({
             message: "Company registered successfully.",
             company,
-            success: true
+            success: true,
+            token: token
         })
     } catch (error) {
         console.log(error);
@@ -91,7 +92,8 @@ export const updateCompany = async (req, res) => {
         }
         return res.status(200).json({
             message:"Company information updated.",
-            success:true
+            success:true,
+            token: token
         })
 
     } catch (error) {
