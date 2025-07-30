@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Navbar from '../shared/Navbar'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
@@ -7,26 +7,14 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { COMPANY_API_END_POINT } from '@/utils/constant'
 import { toast } from 'sonner'
-import { useDispatch, useSelector } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import { setSingleCompany } from '@/redux/companySlice'
 
 const CompanyCreate = () => {
     const navigate = useNavigate();
     const [companyName, setCompanyName] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const dispatch = useDispatch();
-    
-    // Get user from Redux store to check authentication
-    const { user } = useSelector(store => store.auth);
-
-    // Check authentication on component mount
-    useEffect(() => {
-        if (!user) {
-            toast.error('Please login to create a company');
-            navigate('/login');
-            return;
-        }
-    }, [user, navigate]);
 
     const registerNewCompany = async () => {
         // Validation
@@ -35,28 +23,29 @@ const CompanyCreate = () => {
             return;
         }
 
-        if (!user) {
-            toast.error('Authentication required. Please login again.');
-            navigate('/login');
-            return;
-        }
-
-        setLoading(true);
-        
         try {
-            // Get token from localStorage or Redux store
-            const token = localStorage.getItem('token') || user?.token;
+            setIsLoading(true);
             
+            // Get token from localStorage as backup
+            const token = localStorage.getItem('authToken');
+            
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                withCredentials: true,
+                timeout: 10000,
+            };
+
+            // Add Authorization header if token exists (for Vercel deployment)
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+
             const res = await axios.post(
                 `${COMPANY_API_END_POINT}/register`, 
                 { companyName: companyName.trim() }, 
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`, // Add authorization header
-                    },
-                    withCredentials: true
-                }
+                config
             );
 
             if (res?.data?.success) {
@@ -68,78 +57,69 @@ const CompanyCreate = () => {
         } catch (error) {
             console.error('Company creation error:', error);
             
-            // Handle different error scenarios
-            if (error.response?.status === 401) {
-                toast.error('Authentication required. Please login again.');
-                // Clear local storage and redirect to login
-                localStorage.removeItem('token');
-                navigate('/login');
-            } else if (error.response?.status === 403) {
-                toast.error('You do not have permission to create a company.');
-            } else if (error.response?.data?.message) {
-                toast.error(error.response.data.message);
-            } else if (error.message === 'Network Error') {
-                toast.error('Network error. Please check your connection and try again.');
+            // Better error handling
+            if (error.response) {
+                const status = error.response.status;
+                const message = error.response.data.message;
+                
+                if (status === 401) {
+                    toast.error('Authentication required. Please log in again.');
+                    // Clear stored token and redirect to login
+                    localStorage.removeItem('authToken');
+                    navigate('/login');
+                } else if (status === 403) {
+                    toast.error('You do not have permission to create companies.');
+                } else {
+                    toast.error(message || 'Failed to create company');
+                }
+            } else if (error.request) {
+                toast.error('Network error. Please check your connection.');
             } else {
-                toast.error('Failed to create company. Please try again.');
+                toast.error('An unexpected error occurred');
             }
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
-    }
-
-    // Show loading or redirect if not authenticated
-    if (!user) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                    <p>Checking authentication...</p>
-                </div>
-            </div>
-        );
     }
 
     return (
         <div>
             <Navbar />
-            <div className='max-w-4xl mx-auto px-4'>
+            <div className='max-w-4xl mx-auto'>
                 <div className='my-10'>
                     <h1 className='font-bold text-2xl'>Your Company Name</h1>
-                    <p className='text-gray-500'>What would you like to give your company name? You can change this later.</p>
+                    <p className='text-gray-500'>
+                        What would you like to give your company name? You can change this later.
+                    </p>
                 </div>
 
-                <div className='space-y-4'>
-                    <Label htmlFor="companyName">Company Name</Label>
-                    <Input
-                        id="companyName"
-                        type="text"
-                        className="my-2"
-                        placeholder="JobHunt, Microsoft etc."
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        disabled={loading}
-                        onKeyPress={(e) => {
-                            if (e.key === 'Enter' && !loading) {
-                                registerNewCompany();
-                            }
-                        }}
-                    />
-                </div>
+                <Label>Company Name</Label>
+                <Input
+                    type="text"
+                    className="my-2"
+                    placeholder="JobHunt, Microsoft etc."
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isLoading) {
+                            registerNewCompany();
+                        }
+                    }}
+                />
                 
                 <div className='flex items-center gap-2 my-10'>
                     <Button 
                         variant="outline" 
                         onClick={() => navigate("/admin/companies")}
-                        disabled={loading}
+                        disabled={isLoading}
                     >
                         Cancel
                     </Button>
                     <Button 
                         onClick={registerNewCompany}
-                        disabled={loading || !companyName.trim()}
+                        disabled={isLoading || !companyName.trim()}
                     >
-                        {loading ? 'Creating...' : 'Continue'}
+                        {isLoading ? 'Creating...' : 'Continue'}
                     </Button>
                 </div>
             </div>
@@ -147,4 +127,4 @@ const CompanyCreate = () => {
     )
 }
 
-export default CompanyCreate;
+export default CompanyCreate
