@@ -26,7 +26,7 @@ const CompanyCreate = () => {
         try {
             setIsLoading(true);
             
-            // Get token from localStorage as backup
+            // FIXED: Use consistent token key
             const token = localStorage.getItem('authToken');
             
             const config = {
@@ -37,9 +37,15 @@ const CompanyCreate = () => {
                 timeout: 10000,
             };
 
-            // Add Authorization header if token exists (for Vercel deployment)
+            // FIXED: Always add Authorization header if token exists
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
+            } else {
+                // If no token, redirect to login immediately
+                toast.error('Authentication required. Please log in again.');
+                localStorage.clear(); // Clear any stale data
+                navigate('/login');
+                return;
             }
 
             const res = await axios.post(
@@ -60,17 +66,17 @@ const CompanyCreate = () => {
             // Better error handling
             if (error.response) {
                 const status = error.response.status;
-                const message = error.response.data.message;
+                const message = error.response.data?.message || 'An error occurred';
                 
-                if (status === 401) {
+                if (status === 401 || status === 403) {
                     toast.error('Authentication required. Please log in again.');
-                    // Clear stored token and redirect to login
+                    // Clear all possible token keys
                     localStorage.removeItem('authToken');
+                    localStorage.removeItem('token');
+                    sessionStorage.clear();
                     navigate('/login');
-                } else if (status === 403) {
-                    toast.error('You do not have permission to create companies.');
                 } else {
-                    toast.error(message || 'Failed to create company');
+                    toast.error(message);
                 }
             } else if (error.request) {
                 toast.error('Network error. Please check your connection.');
@@ -127,4 +133,4 @@ const CompanyCreate = () => {
     )
 }
 
-export default CompanyCreate
+export default CompanyCreate;
