@@ -214,6 +214,7 @@ export const updateProfile = async (req, res) => {
       message: "Profile updated successfully",
       success: true,
       user: sanitizeUser(updatedUser),
+      token: token
     });
 
   } catch (err) {
