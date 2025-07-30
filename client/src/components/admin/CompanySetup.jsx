@@ -36,6 +36,13 @@ const CompanySetup = () => {
 
     const submitHandler = async (e) => {
         e.preventDefault();
+        
+        // Validate required fields
+        if (!input.name.trim()) {
+            toast.error("Company name is required");
+            return;
+        }
+
         const formData = new FormData();
         formData.append("name", input.name);
         formData.append("description", input.description);
@@ -44,21 +51,61 @@ const CompanySetup = () => {
         if (input.file) {
             formData.append("file", input.file);
         }
+
         try {
             setLoading(true);
-            const res = await axios.put(`${COMPANY_API_END_POINT}/update/${params.id}`, formData, {
+            
+            // Get token from localStorage or wherever it's stored
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            
+            const config = {
                 headers: {
-                    'Content-Type': 'multipart/form-data'
+                    'Content-Type': 'multipart/form-data',
+                    // Add Authorization header if token exists
+                    ...(token && { 'Authorization': `Bearer ${token}` })
                 },
-                withCredentials: true
-            });
+                withCredentials: true,
+                // Add timeout to prevent hanging requests
+                timeout: 30000
+            };
+
+            const res = await axios.put(`${COMPANY_API_END_POINT}/update/${params.id}`, formData, config);
+            
             if (res.data.success) {
-                toast.success(res.data.message);
+                toast.success(res.data.message || "Company updated successfully");
                 navigate("/admin/companies");
             }
         } catch (error) {
-            console.log(error);
-            toast.error(error.response.data.message);
+            console.error('Company update error:', error);
+            
+            // Handle different types of errors
+            if (error.response) {
+                const status = error.response.status;
+                const message = error.response.data?.message || 'An error occurred';
+                
+                if (status === 401) {
+                    toast.error("Authentication required. Please log in again.");
+                    // Clear invalid tokens
+                    localStorage.removeItem('token');
+                    sessionStorage.removeItem('token');
+                    // Redirect to login page
+                    navigate('/login');
+                } else if (status === 403) {
+                    toast.error("You don't have permission to perform this action.");
+                } else if (status === 404) {
+                    toast.error("Company not found.");
+                } else if (status >= 500) {
+                    toast.error("Server error. Please try again later.");
+                } else {
+                    toast.error(message);
+                }
+            } else if (error.request) {
+                // Network error
+                toast.error("Network error. Please check your connection and try again.");
+            } else {
+                // Other errors
+                toast.error("An unexpected error occurred. Please try again.");
+            }
         } finally {
             setLoading(false);
         }
@@ -66,11 +113,11 @@ const CompanySetup = () => {
 
     useEffect(() => {
         setInput({
-            name: singleCompany.name || "",
-            description: singleCompany.description || "",
-            website: singleCompany.website || "",
-            location: singleCompany.location || "",
-            file: singleCompany.file || null
+            name: singleCompany?.name || "",
+            description: singleCompany?.description || "",
+            website: singleCompany?.website || "",
+            location: singleCompany?.location || "",
+            file: singleCompany?.file || null
         })
     },[singleCompany]);
 
@@ -80,7 +127,12 @@ const CompanySetup = () => {
             <div className='max-w-xl mx-auto my-10'>
                 <form onSubmit={submitHandler}>
                     <div className='flex items-center gap-5 p-8'>
-                        <Button onClick={() => navigate("/admin/companies")} variant="outline" className="flex items-center gap-2 text-gray-500 font-semibold">
+                        <Button 
+                            type="button"
+                            onClick={() => navigate("/admin/companies")} 
+                            variant="outline" 
+                            className="flex items-center gap-2 text-gray-500 font-semibold"
+                        >
                             <ArrowLeft />
                             <span>Back</span>
                         </Button>
@@ -88,12 +140,14 @@ const CompanySetup = () => {
                     </div>
                     <div className='grid grid-cols-2 gap-4'>
                         <div>
-                            <Label>Company Name</Label>
+                            <Label>Company Name *</Label>
                             <Input
                                 type="text"
                                 name="name"
                                 value={input.name}
                                 onChange={changeEventHandler}
+                                placeholder="Enter company name"
+                                required
                             />
                         </div>
                         <div>
@@ -103,15 +157,17 @@ const CompanySetup = () => {
                                 name="description"
                                 value={input.description}
                                 onChange={changeEventHandler}
+                                placeholder="Enter description"
                             />
                         </div>
                         <div>
                             <Label>Website</Label>
                             <Input
-                                type="text"
+                                type="url"
                                 name="website"
                                 value={input.website}
                                 onChange={changeEventHandler}
+                                placeholder="https://example.com"
                             />
                         </div>
                         <div>
@@ -121,6 +177,7 @@ const CompanySetup = () => {
                                 name="location"
                                 value={input.location}
                                 onChange={changeEventHandler}
+                                placeholder="Enter location"
                             />
                         </div>
                         <div>
@@ -133,11 +190,19 @@ const CompanySetup = () => {
                         </div>
                     </div>
                     {
-                        loading ? <Button className="w-full my-4"> <Loader2 className='mr-2 h-4 w-4 animate-spin' /> Please wait </Button> : <Button type="submit" className="w-full my-4">Update</Button>
+                        loading ? (
+                            <Button className="w-full my-4" disabled> 
+                                <Loader2 className='mr-2 h-4 w-4 animate-spin' /> 
+                                Please wait 
+                            </Button>
+                        ) : (
+                            <Button type="submit" className="w-full my-4">
+                                Update Company
+                            </Button>
+                        )
                     }
                 </form>
             </div>
-
         </div>
     )
 }
